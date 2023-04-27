@@ -32,7 +32,7 @@ static inline int char_to_val(int c)
 }
 
 // Adapted from "int cpumask_parse(const char *str, cpu_set_t *set, size_t setsize)" in util-linux
-int count_cpumask_threads(const char *str)
+static int count_cpumask_threads(const char *str)
 {
 	int len = strlen(str);
 	if (str[len - 1] == '\n')
@@ -395,7 +395,7 @@ static void dump_top(const unsigned clock_scale)
 
 static const int TIME_S = 60;
 
-int update_schedstat()
+static int update_schedstat()
 {
     FILE *schedstat = fopen("/proc/schedstat", "r");
     if (schedstat == NULL)
@@ -444,7 +444,7 @@ int update_schedstat()
     return 0;
 }
 
-int handle_subscription(const int time_s)
+static int handle_subscription(const int time_s)
 {
     struct timespec end;
     if (clock_gettime(CLOCK_MONOTONIC_COARSE, &end) != 0)
@@ -537,7 +537,7 @@ int handle_subscription(const int time_s)
     return 0;
 }
 
-int handle_frequency(const int time_s)
+static int handle_frequency(const int time_s)
 {
     struct timespec end;
     if (clock_gettime(CLOCK_MONOTONIC_COARSE, &end) != 0)
@@ -600,7 +600,7 @@ int handle_frequency(const int time_s)
     return 0;
 }
 
-int handle_used_time(const int time_s)
+static int handle_used_time(const int time_s)
 {
     struct timespec end;
     if (clock_gettime(CLOCK_MONOTONIC_COARSE, &end) != 0)
@@ -649,17 +649,17 @@ int handle_used_time(const int time_s)
     return 0;
 }
 
-void* subscription_routine(void* time_s)
+static void* subscription_routine(void* time_s)
 {
     return (void*)(long)handle_subscription(*((const int*)time_s));
 }
 
-void* frequency_routine(void* time_s)
+static void* frequency_routine(void* time_s)
 {
     return (void*)(long)handle_frequency(*((const int*)time_s));
 }
 
-void* used_time_routine(void* time_s)
+static void* used_time_routine(void* time_s)
 {
     return (void*)(long)handle_used_time(*((const int*)time_s));;
 }
