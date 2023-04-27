@@ -70,7 +70,7 @@ static unsigned get_local_capacity(const char* const thread_siblings_path)
         return 0;
     }
     const int CPUSET_LEN = 2048 * 7;
-    char buffer[CPUSET_LEN + 1];
+    char buffer[CPUSET_LEN];
     if (fgets(buffer, CPUSET_LEN, thread_siblings) == 0)
     {
         fprintf(stderr, "Failed to read \"%s\", errno=%d\n", thread_siblings_path, errno);
