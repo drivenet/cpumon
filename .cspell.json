@@ -4,5 +4,10 @@
     "cpumask",
     "cpumon",
     "CPUSET"
+  ],
+  "ignoreWords": [
+    "-Wextra",
+    "-Wpedantic",
+    "-lpthread"
   ]
 }
