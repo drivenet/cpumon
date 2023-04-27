@@ -462,11 +462,6 @@ static int handle_subscription(const int time_s)
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000;
-    if (update_schedstat() != 0)
-    {
-        return -1;
-    }
-
     for (unsigned step = 0;;step++)
     {
         FILE *loadavg = fopen("/proc/loadavg", "r");
@@ -520,18 +515,6 @@ static int handle_subscription(const int time_s)
         printf("- system.cpu.runnable %u\n", runnable);
         const unsigned subscription = ((runnable_sum * 10000 + runnable_ratio - 1) / runnable_ratio + capacity - 1) / capacity;
         printf("- system.cpu.subscription %u\n", subscription);
-    }
-
-    if (update_schedstat() != 0)
-    {
-        return -1;
-    }
-
-    printf("- system.cpu.count %hu\n", g_cpu_max_index + 1);
-    for (unsigned short cpu = 0;cpu <= g_cpu_max_index;++cpu)
-    {
-        unsigned long long wait_time = g_cpu_wait_time[cpu];
-        printf("- system.cpu%hu.wait_time %llu\n", cpu, (wait_time + 500) / 1000);
     }
 
     return 0;
@@ -646,6 +629,29 @@ static int handle_used_time(const int time_s)
     {
         return -1;
     }
+
+    return 0;
+}
+
+static int handle_cpu_wait_time(const int time_s)
+{
+    if (update_schedstat() != 0)
+    {
+        return -1;
+    }
+    usleep(time_s * 1000000);
+    g_cpu_max_index = 0; // If CPU count is down we should not take into account old CPUs
+    if (update_schedstat() != 0)
+    {
+        return -1;
+    }
+
+    printf("- system.cpu.count %hu\n", g_cpu_max_index + 1);
+    for (unsigned short cpu = 0;cpu <= g_cpu_max_index;++cpu)
+    {
+        unsigned long long wait_time = g_cpu_wait_time[cpu];
+        printf("- system.cpu%hu.wait_time %llu\n", cpu, (wait_time + 500) / 1000);
+    }
     return 0;
 }
 
@@ -662,6 +668,11 @@ static void* frequency_routine(void* time_s)
 static void* used_time_routine(void* time_s)
 {
     return (void*)(long)handle_used_time(*((const int*)time_s));;
+}
+
+static void* cpu_wait_time_routine(void* time_s)
+{
+    return (void*)(long)handle_cpu_wait_time(*((const int*)time_s));;
 }
 
 int main(int argc, char* argv[])
@@ -693,6 +704,12 @@ int main(int argc, char* argv[])
     if (pthread_create(&used_time_thread, NULL, used_time_routine, &time_s))
     {
         fprintf(stderr, "Failed to create used time monitoring thread, errno=%d", errno);
+        return -1;
+    }
+    pthread_t cpu_wait_time_thread;
+    if (pthread_create(&cpu_wait_time_thread, NULL, cpu_wait_time_routine, &time_s))
+    {
+        fprintf(stderr, "Failed to create CPU wait time monitoring thread, errno=%d", errno);
         return -1;
     }
     void* subscription_result;
@@ -727,6 +744,17 @@ int main(int argc, char* argv[])
     if (used_time_result_code != 0)
     {
         return used_time_result_code;
+    }    
+    void* cpu_wait_time_result;
+    if (pthread_join(cpu_wait_time_thread, &cpu_wait_time_result) != 0)
+    {
+        fprintf(stderr, "Failed to join CPU wait time monitoring thread, errno=%d", errno);
+        return -1;
+    }
+    const int cpu_wait_time_result_code = (int)(long)cpu_wait_time_result;
+    if (cpu_wait_time_result_code != 0)
+    {
+        return cpu_wait_time_result_code;
     }    
     const unsigned clock_scale = sysconf(_SC_CLK_TCK) * time_s / 100;
     dump_top(clock_scale);
