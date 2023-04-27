@@ -2,6 +2,7 @@
   "words": [
     "cpufreq",
     "cpumask",
-    "cpumon"
+    "cpumon",
+    "CPUSET"
   ]
 }
