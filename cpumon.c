@@ -17,6 +17,8 @@
 #include <glob.h>
 #include <sys/types.h>
 
+//#define FREE_MEMORY
+
 // Cloned from util-linux
 static inline int char_to_val(int c)
 {
@@ -346,21 +348,20 @@ static int get_used_time()
     return 0;
 }
 
-/*
 static void free_names()
 {
-    pid_t pid;
-    for (pid = 0;pid != PID_MAX;pid++)
+#ifdef FREE_MEMORY
+    for (pid_t pid = 0;pid != PID_MAX;pid++)
     {
-        char* name = g_procs[pid].name;
-        if (name != NULL)
+        const char** const name_ptr = &g_procs[pid].name;
+        if (*name_ptr != NULL)
         {
-            free(name);
-            g_procs[pid].name = NULL;
+            free((void*)*name_ptr);
+            *name_ptr = NULL;
         }
     }
+#endif
 }
-*/
 
 static int diff_comparer(const void* const a, const void* const b)
 {
@@ -433,7 +434,7 @@ int handle_subscription(const int time_s)
         if (loadavg == NULL)
         {
             fprintf(stderr, "Failed to open /proc/loadavg, errno=%d\n", errno);
-            //free_names();
+            free_names();
             return -1;
         }
         int runnable;
@@ -441,14 +442,14 @@ int handle_subscription(const int time_s)
         {
             fprintf(stderr, "Failed to read /proc/loadavg, errno=%d\n", errno);
             fclose(loadavg);
-            //free_names();
+            free_names();
             return -1;
         }
         fclose(loadavg);
         if (runnable == 0)
         {
             fputs("Unexpected zero runnable queue", stderr);
-            //free_names();
+            free_names();
             return -1;
         }
         runnable_sum += runnable - 1;
@@ -457,7 +458,7 @@ int handle_subscription(const int time_s)
         if (clock_gettime(CLOCK_MONOTONIC_COARSE, &now) != 0)
         {
             fprintf(stderr, "Failed to get current time (now) for subscription, errno=%d\n", errno);
-            //free_names();
+            free_names();
             return -1;
         }
         long long remaining = ((long long)(now.tv_sec - end.tv_sec)) * 1000000 + (now.tv_nsec - end.tv_nsec) / 1000;
@@ -470,7 +471,7 @@ int handle_subscription(const int time_s)
             if (clock_gettime(CLOCK_MONOTONIC_COARSE, &last) != 0)
             {
                 fprintf(stderr, "Failed to get current time (last) for subscription, errno=%d\n", errno);
-                //free_names();
+                free_names();
                 return -1;
             }
         }
@@ -486,7 +487,7 @@ int handle_subscription(const int time_s)
         const unsigned subscription = ((runnable_sum * 10000 + runnable_ratio - 1) / runnable_ratio + capacity - 1) / capacity;
         printf("- system.cpu.subscription %u\n", subscription);
     }
-    //free_names();
+    free_names();
     return 0;
 }
 
@@ -685,6 +686,6 @@ int main(int argc, char* argv[])
     }    
     const unsigned clock_scale = sysconf(_SC_CLK_TCK) * time_s / 100;
     dump_top(clock_scale);
-    //free_names();
+    free_names();
     return 0;
 }
