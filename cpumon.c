@@ -336,8 +336,7 @@ static int get_used_time()
         fprintf(stderr, "Failed to get process list, errno=%d\n", errno);
         return -1;
     }
-    size_t i;
-    for (i = 0;i != result.gl_pathc;++i)
+    for (size_t i = 0;i != result.gl_pathc;++i)
     {
         int local_time = get_local_time(result.gl_pathv[i]);
         if (local_time < 0)
@@ -468,8 +467,7 @@ int handle_subscription(const int time_s)
         return -1;
     }
 
-    unsigned step;
-    for (step = 0;;step++)
+    for (unsigned step = 0;;step++)
     {
         FILE *loadavg = fopen("/proc/loadavg", "r");
         if (loadavg == NULL)
@@ -556,8 +554,7 @@ int handle_frequency(const int time_s)
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000;
-    unsigned step;
-    for (step = 0;;step++)
+    for (unsigned step = 0;;step++)
     {
         if (frequency_limit != 0)
         {
@@ -615,8 +612,7 @@ int handle_used_time(const int time_s)
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000;
-    unsigned step;
-    for (step = 0;;step++)
+    for (unsigned step = 0;;step++)
     {
         if (get_used_time() < 0)
         {
