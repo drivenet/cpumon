@@ -422,7 +422,7 @@ int handle_subscription(const int time_s)
     const unsigned capacity = get_capacity();
     if (capacity == 0)
         return -1;
-    //printf("- system.cpu.capacity %u\n", capacity);
+    printf("- system.cpu.capacity %u\n", capacity);
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000;
@@ -481,8 +481,8 @@ int handle_subscription(const int time_s)
     }
     if (runnable_ratio != 0)
     {
-        //const unsigned runnable = (runnable_sum * 100 + runnable_ratio - 1) / runnable_ratio;
-        //printf("- system.cpu.runnable %u\n", runnable);
+        const unsigned runnable = (runnable_sum * 100 + runnable_ratio - 1) / runnable_ratio;
+        printf("- system.cpu.runnable %u\n", runnable);
         const unsigned subscription = ((runnable_sum * 10000 + runnable_ratio - 1) / runnable_ratio + capacity - 1) / capacity;
         printf("- system.cpu.subscription %u\n", subscription);
     }
@@ -546,8 +546,8 @@ int handle_frequency(const int time_s)
     }
     if (frequency_ratio != 0)
     {
-        //const unsigned frequency = (frequency_sum + frequency_ratio - 1) / frequency_ratio;
-        //printf("- system.cpu.frequency %u\n", frequency);
+        const unsigned frequency = (frequency_sum + frequency_ratio - 1) / frequency_ratio;
+        printf("- system.cpu.frequency %u\n", frequency);
         const unsigned frequency_scale = ((frequency_sum * 100 + frequency_ratio - 1) / frequency_ratio + frequency_limit - 1) / frequency_limit;
         printf("- system.cpu.frequency_scale %u\n", frequency_scale);
     }
