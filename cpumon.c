@@ -17,7 +17,7 @@
 #include <glob.h>
 #include <sys/types.h>
 
-//  cloned from util-linux
+// Cloned from util-linux
 static inline int char_to_val(int c)
 {
 	int cl;
@@ -31,7 +31,7 @@ static inline int char_to_val(int c)
 		return -1;
 }
 
-//  adapted from "int cpumask_parse(const char *str, cpu_set_t *set, size_t setsize)" in util-linux
+// Adapted from "int cpumask_parse(const char *str, cpu_set_t *set, size_t setsize)" in util-linux
 int count_cpumask_threads(const char *str)
 {
 	int len = strlen(str);
@@ -631,7 +631,7 @@ int main(int argc, char* argv[])
             return -1;
         }        
     }
-// start threads and join them
+// Start threads and join them
     pthread_t subscription_thread;
     if (pthread_create(&subscription_thread, NULL, subscription_routine, &time_s) != 0)
     {
