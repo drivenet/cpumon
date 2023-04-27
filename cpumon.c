@@ -173,6 +173,8 @@ static unsigned get_frequency_limit()
 
 // Matches PID_MAX_LIMIT for now
 #define PID_MAX 4 * 1024 * 1024
+// We probably won't hit this
+#define NR_CPUS 2048
 
 struct procinfo {
     unsigned time;
@@ -183,6 +185,8 @@ struct procinfo {
 static struct procinfo g_procs[PID_MAX];
 static pid_t g_used_pids[PID_MAX];
 static unsigned g_used_pids_count;
+static unsigned long long g_cpu_wait_time[NR_CPUS];
+static unsigned short g_cpu_max_index;
 
 static const unsigned MIN_TIME = 1800;
 static const unsigned MIN_USED_TIME = 32;
@@ -392,6 +396,55 @@ static void dump_top(const unsigned clock_scale)
 
 static const int TIME_S = 60;
 
+int update_schedstat()
+{
+    FILE *schedstat = fopen("/proc/schedstat", "r");
+    if (schedstat == NULL)
+    {
+        fprintf(stderr, "Failed to open /proc/schedstat, errno=%d\n", errno);
+        return -1;
+    }
+    for (;;)
+    {
+        const int SCHEDSTAT_LINE_LEN = 1024;
+        char buffer[SCHEDSTAT_LINE_LEN];
+        if (fgets(buffer, SCHEDSTAT_LINE_LEN, schedstat) == NULL)
+        {
+            if (errno == 0)
+            {
+                break;
+            }
+
+            fprintf(stderr, "Failed to read /proc/schedstat, errno=%d\n", errno);
+            fclose(schedstat);
+            return -1;
+        }
+        unsigned short cpu;
+        unsigned long long wait_time;
+        //Test validity of field formats
+        if (sscanf(buffer, "cpu%hu %*u %*u %*u %*u %*u %*u %*u %llu %*u\n", &cpu, &wait_time) != 2)
+        {
+            continue;
+        }
+
+        if (cpu >= NR_CPUS)
+        {
+            fprintf(stderr, "Invalid CPU index %hu\n", cpu);
+            fclose(schedstat);
+            return -1;
+        }
+
+        g_cpu_wait_time[cpu] = wait_time - g_cpu_wait_time[cpu];
+        if (g_cpu_max_index < cpu)
+        {
+            g_cpu_max_index = cpu;
+        }
+    }
+
+    fclose(schedstat);
+    return 0;
+}
+
 int handle_subscription(const int time_s)
 {
     struct timespec end;
@@ -410,6 +463,11 @@ int handle_subscription(const int time_s)
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000;
+    if (update_schedstat() != 0)
+    {
+        return -1;
+    }
+
     unsigned step;
     for (step = 0;;step++)
     {
@@ -465,6 +523,19 @@ int handle_subscription(const int time_s)
         const unsigned subscription = ((runnable_sum * 10000 + runnable_ratio - 1) / runnable_ratio + capacity - 1) / capacity;
         printf("- system.cpu.subscription %u\n", subscription);
     }
+
+    if (update_schedstat() != 0)
+    {
+        return -1;
+    }
+
+    printf("- system.cpu.count %hu\n", g_cpu_max_index + 1);
+    for (unsigned short cpu = 0;cpu <= g_cpu_max_index;++cpu)
+    {
+        unsigned long long wait_time = g_cpu_wait_time[cpu];
+        printf("- system.cpu%hu.wait_time %llu\n", cpu, (wait_time + 500) / 1000);
+    }
+
     return 0;
 }
 

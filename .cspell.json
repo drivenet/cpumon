@@ -3,7 +3,8 @@
     "cpufreq",
     "cpumask",
     "cpumon",
-    "CPUSET"
+    "CPUSET",
+    "schedstat"
   ],
   "ignoreWords": [
     "-Wextra",
