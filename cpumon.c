@@ -639,19 +639,43 @@ static int handle_cpu_wait_time(const int time_s)
     {
         return -1;
     }
-    usleep(time_s * 1000000);
+    const unsigned long long interval = 1000000ULL * time_s;
+    usleep(interval);
     g_cpu_max_index = 0; // If CPU count is down we should not take into account old CPUs
     if (update_schedstat() != 0)
     {
         return -1;
     }
 
-    printf("- system.cpu.count %hu\n", g_cpu_max_index + 1);
-    for (unsigned short cpu = 0;cpu <= g_cpu_max_index;++cpu)
+    const unsigned cpus = g_cpu_max_index + 1;
+    printf("- system.cpu.count %hu\n", cpus);
+    unsigned total_capacity = 0;
+    unsigned long long total_wait_time = 0;
+    for (unsigned short cpu = 0;cpu < cpus;++cpu)
     {
-        unsigned long long wait_time = g_cpu_wait_time[cpu];
-        printf("- system.cpu%hu.wait_time %llu\n", cpu, (wait_time + 500) / 1000);
+        char path[PATH_MAX + 1];
+        if (snprintf(path, PATH_MAX + 1, "/sys/devices/system/cpu/cpu%hu/topology/thread_siblings", cpu) <= 0)
+        {
+            fprintf(stderr, "Failed to generate cpu%hu topology path, errno=%d\n", cpu, errno);
+            return -1;
+        }
+        const unsigned cpu_capacity = get_local_capacity(path);
+        if (cpu_capacity == 0)
+        {
+            fprintf(stderr, "Failed to get cpu%hu capacity, errno=%d\n", cpu, errno);
+            return -1;
+        }
+        total_capacity += cpu_capacity;
+        const unsigned long long wait_time = g_cpu_wait_time[cpu];
+        total_wait_time += wait_time;
+        const unsigned long long scale = interval * cpu_capacity;
+        const unsigned wait = (wait_time * 10000 + scale - 1) / scale;
+        printf("- system.cpu%hu.wait %u\n", cpu, wait);
     }
+
+    const unsigned long long total_scale = interval * total_capacity;
+    const unsigned total_wait = (total_wait_time * 10000 + total_scale - 1) / total_scale;
+    printf("- system.cpu.wait %u\n", total_wait);
     return 0;
 }
 
