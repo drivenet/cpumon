@@ -318,7 +318,7 @@ static int get_local_time(char* const stat_path)
                 else
                 {
                     fputs("Used pids table overflow", stderr);
-                    abort();
+                    return -1;
                 }
             }
         }
