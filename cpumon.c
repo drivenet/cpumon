@@ -668,13 +668,13 @@ static int handle_cpu_wait_time(const int time_s)
         total_capacity += cpu_capacity;
         const unsigned long long wait_time = g_cpu_wait_time[cpu];
         total_wait_time += wait_time;
-        const unsigned long long scale = interval * cpu_capacity;
-        const unsigned wait = (wait_time * 10000 + scale - 1) / scale;
+        const unsigned long long scale = interval * cpu_capacity * 1000;
+        const unsigned wait = (wait_time * 100 * 100 + scale - 1) / scale;
         printf("- system.cpu%hu.wait %u\n", cpu, wait);
     }
 
-    const unsigned long long total_scale = interval * total_capacity;
-    const unsigned total_wait = (total_wait_time * 10000 + total_scale - 1) / total_scale;
+    const unsigned long long total_scale = interval * total_capacity * 1000;
+    const unsigned total_wait = (total_wait_time * 100 * cpus * 100 + total_scale - 1) / total_scale;
     printf("- system.cpu.wait %u\n", total_wait);
     return 0;
 }
