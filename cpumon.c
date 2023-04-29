@@ -458,7 +458,6 @@ static int handle_subscription(const int time_s)
     const unsigned capacity = get_capacity();
     if (capacity == 0)
         return -1;
-    printf("- system.cpu.capacity %u\n", capacity);
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000;
@@ -511,8 +510,6 @@ static int handle_subscription(const int time_s)
     }
     if (runnable_ratio != 0)
     {
-        const unsigned runnable = (runnable_sum * 100 + runnable_ratio - 1) / runnable_ratio;
-        printf("- system.cpu.runnable %u\n", runnable);
         const unsigned subscription = ((runnable_sum * 10000 + runnable_ratio - 1) / runnable_ratio + capacity - 1) / capacity;
         printf("- system.cpu.subscription %u\n", subscription);
     }
@@ -648,7 +645,6 @@ static int handle_cpu_wait_time(const int time_s)
     }
 
     const unsigned cpus = g_cpu_max_index + 1;
-    printf("- system.cpu.count %hu\n", cpus);
     unsigned total_capacity = 0;
     unsigned long long total_wait_time = 0;
     for (unsigned short cpu = 0;cpu < cpus;++cpu)
