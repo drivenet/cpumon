@@ -400,6 +400,11 @@ static int update_schedstat()
     FILE *schedstat = fopen("/proc/schedstat", "r");
     if (schedstat == NULL)
     {
+        if (errno == ENOENT)
+        {
+            return 0;
+        }
+
         fprintf(stderr, "Failed to open /proc/schedstat, errno=%d\n", errno);
         return -1;
     }
