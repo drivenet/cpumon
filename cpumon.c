@@ -185,7 +185,7 @@ struct procinfo {
 static struct procinfo g_procs[PID_MAX];
 static pid_t g_used_pids[PID_MAX];
 static unsigned g_used_pids_count;
-static unsigned long long g_cpu_wait_time[NR_CPUS];
+static unsigned long long g_cpu_subscription[NR_CPUS];
 static unsigned short g_cpu_max_index;
 
 static const unsigned MIN_TIME = 1800;
@@ -395,19 +395,8 @@ static void dump_top(const unsigned clock_scale)
 
 static const int TIME_S = 60;
 
-static int update_schedstat()
+static int update_schedstat(FILE* const schedstat)
 {
-    FILE *schedstat = fopen("/proc/schedstat", "r");
-    if (schedstat == NULL)
-    {
-        if (errno == ENOENT)
-        {
-            return 0;
-        }
-
-        fprintf(stderr, "Failed to open /proc/schedstat, errno=%d\n", errno);
-        return -1;
-    }
     for (;;)
     {
         const int SCHEDSTAT_LINE_LEN = 1024;
@@ -420,13 +409,12 @@ static int update_schedstat()
             }
 
             fprintf(stderr, "Failed to read /proc/schedstat, errno=%d\n", errno);
-            fclose(schedstat);
             return -1;
         }
         unsigned short cpu;
+        unsigned long long run_time;
         unsigned long long wait_time;
-        //Test validity of field formats
-        if (sscanf(buffer, "cpu%hu %*u %*u %*u %*u %*u %*u %*u %llu %*u\n", &cpu, &wait_time) != 2)
+        if (sscanf(buffer, "cpu%hu %*u %*u %*u %*u %*u %*u %llu %llu %*u\n", &cpu, &run_time, &wait_time) != 3)
         {
             continue;
         }
@@ -434,22 +422,20 @@ static int update_schedstat()
         if (cpu >= NR_CPUS)
         {
             fprintf(stderr, "Invalid CPU index %hu\n", cpu);
-            fclose(schedstat);
             return -1;
         }
 
-        g_cpu_wait_time[cpu] = wait_time - g_cpu_wait_time[cpu];
+        g_cpu_subscription[cpu] = run_time + wait_time - g_cpu_subscription[cpu];
         if (g_cpu_max_index < cpu)
         {
             g_cpu_max_index = cpu;
         }
     }
 
-    fclose(schedstat);
     return 0;
 }
 
-static int handle_subscription(const int time_s)
+static int handle_subscription_loadavg(const int time_s)
 {
     struct timespec end;
     if (clock_gettime(CLOCK_MONOTONIC_COARSE, &end) != 0)
@@ -635,23 +621,39 @@ static int handle_used_time(const int time_s)
     return 0;
 }
 
-static int handle_cpu_wait_time(const int time_s)
+static int handle_subscription(const int time_s)
 {
-    if (update_schedstat() != 0)
+    FILE *schedstat = fopen("/proc/schedstat", "r");
+    if (schedstat == NULL)
     {
+        if (errno == ENOENT)
+        {
+            return handle_subscription_loadavg(time_s);
+        }
+
+        fprintf(stderr, "Failed to open /proc/schedstat, errno=%d\n", errno);
+        return -1;
+    }
+
+    if (update_schedstat(schedstat) != 0)
+    {
+        fclose(schedstat);
         return -1;
     }
     const unsigned long long interval = 1000000ULL * time_s;
     usleep(interval);
     g_cpu_max_index = 0; // If CPU count is down we should not take into account old CPUs
-    if (update_schedstat() != 0)
+    rewind(schedstat);
+    if (update_schedstat(schedstat) != 0)
     {
+        fclose(schedstat);
         return -1;
     }
+    fclose(schedstat);
 
     const unsigned cpus = g_cpu_max_index + 1;
     unsigned total_capacity = 0;
-    unsigned long long total_wait_time = 0;
+    unsigned long long total_cpu_subscription = 0;
     for (unsigned short cpu = 0;cpu < cpus;++cpu)
     {
         char path[PATH_MAX + 1];
@@ -667,16 +669,16 @@ static int handle_cpu_wait_time(const int time_s)
             return -1;
         }
         total_capacity += cpu_capacity;
-        const unsigned long long wait_time = g_cpu_wait_time[cpu];
-        total_wait_time += wait_time;
+        const unsigned long long cpu_subscription = g_cpu_subscription[cpu];
+        total_cpu_subscription += cpu_subscription;
         const unsigned long long scale = interval * cpu_capacity * 1000;
-        const unsigned wait = (wait_time * 100 * 100 + scale - 1) / scale;
-        printf("- system.cpu%hu.wait %u\n", cpu, wait);
+        const unsigned subscription = (cpu_subscription * 100 * 100 + scale - 1) / scale;
+        printf("- system.cpu%hu.subscription %u\n", cpu, subscription);
     }
 
     const unsigned long long total_scale = interval * total_capacity * 1000;
-    const unsigned total_wait = (total_wait_time * 100 * cpus * 100 + total_scale - 1) / total_scale;
-    printf("- system.cpu.wait %u\n", total_wait);
+    const unsigned total_subscription = (total_cpu_subscription * 100 * 100 + total_scale - 1) / total_scale;
+    printf("- system.cpu.subscription %u\n", total_subscription);
     return 0;
 }
 
@@ -693,11 +695,6 @@ static void* frequency_routine(void* time_s)
 static void* used_time_routine(void* time_s)
 {
     return (void*)(long)handle_used_time(*((const int*)time_s));;
-}
-
-static void* cpu_wait_time_routine(void* time_s)
-{
-    return (void*)(long)handle_cpu_wait_time(*((const int*)time_s));;
 }
 
 int main(int argc, char* argv[])
@@ -729,12 +726,6 @@ int main(int argc, char* argv[])
     if (pthread_create(&used_time_thread, NULL, used_time_routine, &time_s))
     {
         fprintf(stderr, "Failed to create used time monitoring thread, errno=%d", errno);
-        return -1;
-    }
-    pthread_t cpu_wait_time_thread;
-    if (pthread_create(&cpu_wait_time_thread, NULL, cpu_wait_time_routine, &time_s))
-    {
-        fprintf(stderr, "Failed to create CPU wait time monitoring thread, errno=%d", errno);
         return -1;
     }
     void* subscription_result;
@@ -769,17 +760,6 @@ int main(int argc, char* argv[])
     if (used_time_result_code != 0)
     {
         return used_time_result_code;
-    }    
-    void* cpu_wait_time_result;
-    if (pthread_join(cpu_wait_time_thread, &cpu_wait_time_result) != 0)
-    {
-        fprintf(stderr, "Failed to join CPU wait time monitoring thread, errno=%d", errno);
-        return -1;
-    }
-    const int cpu_wait_time_result_code = (int)(long)cpu_wait_time_result;
-    if (cpu_wait_time_result_code != 0)
-    {
-        return cpu_wait_time_result_code;
     }    
     const unsigned clock_scale = sysconf(_SC_CLK_TCK) * time_s / 100;
     dump_top(clock_scale);
