@@ -673,7 +673,7 @@ static int handle_subscription(const int time_s)
         total_cpu_subscription += cpu_subscription;
         const unsigned long long scale = interval * cpu_capacity * 1000;
         const unsigned subscription = (cpu_subscription * 100 * 100 + scale - 1) / scale;
-        printf("- system.cpu%hu.subscription %u\n", cpu, subscription);
+        printf("- system.cpu.subscription[%hu] %u\n", cpu, subscription);
     }
 
     const unsigned long long total_scale = interval * total_capacity * 1000;
