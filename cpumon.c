@@ -184,9 +184,9 @@ struct procinfo {
 
 static struct procinfo g_procs[PID_MAX];
 static pid_t g_used_pids[PID_MAX];
-static unsigned g_used_pids_count;
+static volatile unsigned g_used_pids_count;
 static unsigned long long g_cpu_subscription[NR_CPUS];
-static unsigned short g_cpu_max_index;
+static volatile unsigned short g_cpu_max_index;
 
 static const unsigned MIN_TIME = 1800;
 static const unsigned MIN_USED_TIME = 32;
@@ -311,15 +311,12 @@ static int get_local_time(char* const stat_path)
         {
             if (read_name(pid, stat_path) != 0)
             {
-                if (g_used_pids_count < PID_MAX)
+                if (g_used_pids_count >= PID_MAX)
                 {    
-                    g_used_pids[g_used_pids_count++] = pid;
-                }
-                else
-                {
                     fputs("Used pids table overflow", stderr);
                     return -1;
                 }
+                g_used_pids[g_used_pids_count++] = pid;
             }
         }
         g_procs[pid].diff = delta;
