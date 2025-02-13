@@ -454,7 +454,7 @@ static int handle_subscription_loadavg(const int time_s)
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000LL;
-    for (unsigned step = 0;g_stop == 0;step++)
+    while (g_stop == 0)
     {
         FILE *loadavg = fopen("/proc/loadavg", "r");
         if (loadavg == NULL)
@@ -533,7 +533,7 @@ static int handle_frequency(const int time_s)
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000LL;
-    for (unsigned step = 0;g_stop == 0;step++)
+    while (g_stop == 0)
     {
         if (frequency_limit != 0)
         {
@@ -597,7 +597,7 @@ static int handle_used_time(const int time_s)
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000LL;
-    for (unsigned step = 0;g_stop == 0;step++)
+    while (g_stop == 0)
     {
         if (get_used_time() < 0)
         {
