@@ -92,24 +92,6 @@ static unsigned get_local_capacity(const char* const thread_siblings_path)
     return capacity;
 }
 
-static unsigned get_capacity()
-{
-    glob_t result;
-    if (glob("/sys/devices/system/cpu/cpu[0-9]*/topology/thread_siblings", GLOB_NOSORT, NULL, &result) != 0)
-    {
-        fprintf(stderr, "Failed to get processor topology, errno=%d\n", errno);
-        return 0;
-    }
-    unsigned capacity = 0;
-    for (size_t i = 0;i != result.gl_pathc;++i)
-    {
-        const unsigned local_capacity = get_local_capacity(result.gl_pathv[i]);
-        capacity += local_capacity;
-    }
-    globfree(&result);
-    return capacity;
-}
-
 static unsigned get_local_frequency(const char* const cur_freq_path)
 {
     FILE* const cur_freq = fopen(cur_freq_path, "r");
@@ -439,85 +421,6 @@ static int update_schedstat(FILE* const schedstat)
     return 0;
 }
 
-static int handle_subscription_loadavg(const int time_s)
-{
-    struct timespec end;
-    if (clock_gettime(CLOCK_MONOTONIC_COARSE, &end) != 0)
-    {
-        fprintf(stderr, "Failed to get start time for subscription, errno=%d\n", errno);
-        return -1;
-    }
-    const useconds_t INTERVAL_MS = 17;
-    unsigned long long runnable_sum = 0;
-    unsigned runnable_ratio = 0;
-    const unsigned capacity = get_capacity();
-    if (capacity == 0)
-        return -1;
-    struct timespec last = end;
-    end.tv_sec += time_s;
-    end.tv_nsec -= INTERVAL_MS * 1000000;
-    for (unsigned step = 0;g_stop == 0;step++)
-    {
-        FILE *loadavg = fopen("/proc/loadavg", "r");
-        if (loadavg == NULL)
-        {
-            fprintf(stderr, "Failed to open /proc/loadavg, errno=%d\n", errno);
-            return -1;
-        }
-        int runnable;
-        if (fscanf(loadavg, "%*f %*f %*f %d", &runnable) != 1)
-        {
-            fprintf(stderr, "Failed to read /proc/loadavg, errno=%d\n", errno);
-            fclose(loadavg);
-            return -1;
-        }
-        fclose(loadavg);
-        if (runnable == 0)
-        {
-            fputs("Unexpected zero runnable queue", stderr);
-            return -1;
-        }
-        runnable_sum += runnable - 1;
-        runnable_ratio++;
-        struct timespec now;
-        if (clock_gettime(CLOCK_MONOTONIC_COARSE, &now) != 0)
-        {
-            fprintf(stderr, "Failed to get current time (now) for subscription, errno=%d\n", errno);
-            return -1;
-        }
-        long long remaining = ((long long)(now.tv_sec - end.tv_sec)) * 1000000 + (now.tv_nsec - end.tv_nsec) / 1000;
-        if (remaining >= 0)
-            break;
-        long long diff = INTERVAL_MS * 1000000 - ((long long)(now.tv_sec - last.tv_sec)) * 1000000000 - (now.tv_nsec - last.tv_nsec);
-        if (diff > 0)
-        {
-            struct timespec slp;
-            slp.tv_sec = diff / 1000000000;
-            slp.tv_nsec = diff % 1000000000;
-            if (nanosleep(&slp, NULL) != 0)
-            {
-                return errno == EINTR ? -1 : 0;
-            }
-            if (clock_gettime(CLOCK_MONOTONIC_COARSE, &last) != 0)
-            {
-                fprintf(stderr, "Failed to get current time (last) for subscription, errno=%d\n", errno);
-                return -1;
-            }
-        }
-        else
-        {
-            last = now;
-        }
-    }
-    if (runnable_ratio != 0)
-    {
-        const unsigned subscription = ((runnable_sum * 10000 + runnable_ratio - 1) / runnable_ratio + capacity - 1) / capacity;
-        printf("- system.cpu.subscription %u\n", subscription);
-    }
-
-    return 0;
-}
-
 static int handle_frequency(const int time_s)
 {
     struct timespec end;
@@ -648,11 +551,6 @@ static int handle_subscription(const int time_s)
     FILE *schedstat = fopen("/proc/schedstat", "r");
     if (schedstat == NULL)
     {
-        if (errno == ENOENT)
-        {
-            return handle_subscription_loadavg(time_s);
-        }
-
         fprintf(stderr, "Failed to open /proc/schedstat, errno=%d\n", errno);
         return -1;
     }
