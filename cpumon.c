@@ -692,6 +692,7 @@ static int handle_subscription(const int time_s)
             fprintf(stderr, "Failed to generate cpu%hu topology path, errno=%d\n", cpu, errno);
             return -1;
         }
+
         const unsigned cpu_capacity = get_local_capacity(path);
         if (cpu_capacity == 0)
         {
@@ -752,7 +753,6 @@ static void term_handler(int signum)
         pthread_kill(g_frequency_thread, SIGALRM);
     }
 
-
     if (g_used_time_thread)
     {
         pthread_kill(g_used_time_thread, SIGALRM);
@@ -796,6 +796,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Failed to create used time monitoring thread, errno=%d", errno);
         return -1;
     }
+
     void* subscription_result;
     if (pthread_join(g_subscription_thread, &subscription_result) != 0)
     {
@@ -814,6 +815,7 @@ int main(int argc, char* argv[])
         fprintf(stderr, "Failed to join used time monitoring thread, errno=%d", errno);
         return -1;
     }
+
     const int subscription_result_code = (int)(long)subscription_result;
     if (subscription_result_code != 0)
     {
@@ -829,6 +831,7 @@ int main(int argc, char* argv[])
     {
         return used_time_result_code;
     }    
+
     const unsigned clock_scale = sysconf(_SC_CLK_TCK) * time_s / 100;
     dump_top(clock_scale);
     return 0;
