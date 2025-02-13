@@ -9,7 +9,6 @@
 #include <fcntl.h>
 #include <libgen.h>
 #include <limits.h>
-#include <time.h>
 #include <pthread.h>
 #include <signal.h>
 #include <stdio.h>
@@ -18,7 +17,6 @@
 #include <time.h>
 #include <unistd.h>
 #include <glob.h>
-#include <sys/types.h>
 
 // Cloned from util-linux
 static inline int char_to_val(int c)
