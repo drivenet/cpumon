@@ -3,12 +3,15 @@
     Usage: cpumon [<time in seconds=[5;60]>]
 */
 
+#define _POSIX_C_SOURCE 200809
 #include <errno.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include <libgen.h>
 #include <limits.h>
+#include <time.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -187,6 +190,10 @@ static pid_t g_used_pids[PID_MAX];
 static volatile unsigned g_used_pids_count;
 static unsigned long long g_cpu_subscription[NR_CPUS];
 static volatile unsigned short g_cpu_max_index;
+static pthread_t g_subscription_thread;
+static pthread_t g_frequency_thread;
+static pthread_t g_used_time_thread;
+static volatile sig_atomic_t g_stop;
 
 static const unsigned MIN_TIME = 1800;
 static const unsigned MIN_USED_TIME = 32;
@@ -449,7 +456,7 @@ static int handle_subscription_loadavg(const int time_s)
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000;
-    for (unsigned step = 0;;step++)
+    for (unsigned step = 0;g_stop == 0;step++)
     {
         FILE *loadavg = fopen("/proc/loadavg", "r");
         if (loadavg == NULL)
@@ -481,10 +488,16 @@ static int handle_subscription_loadavg(const int time_s)
         long long remaining = ((long long)(now.tv_sec - end.tv_sec)) * 1000000 + (now.tv_nsec - end.tv_nsec) / 1000;
         if (remaining >= 0)
             break;
-        long long diff = INTERVAL_MS * 1000 - ((long long)(now.tv_sec - last.tv_sec)) * 1000000 - (now.tv_nsec - last.tv_nsec) / 1000;
+        long long diff = INTERVAL_MS * 1000000 - ((long long)(now.tv_sec - last.tv_sec)) * 1000000000 - (now.tv_nsec - last.tv_nsec);
         if (diff > 0)
         {
-            usleep(diff);
+            struct timespec slp;
+            slp.tv_sec = diff / 1000000000;
+            slp.tv_nsec = diff % 1000000000;
+            if (nanosleep(&slp, NULL) != 0)
+            {
+                return errno == EINTR ? -1 : 0;
+            }
             if (clock_gettime(CLOCK_MONOTONIC_COARSE, &last) != 0)
             {
                 fprintf(stderr, "Failed to get current time (last) for subscription, errno=%d\n", errno);
@@ -522,7 +535,7 @@ static int handle_frequency(const int time_s)
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000;
-    for (unsigned step = 0;;step++)
+    for (unsigned step = 0;g_stop == 0;step++)
     {
         if (frequency_limit != 0)
         {
@@ -543,10 +556,16 @@ static int handle_frequency(const int time_s)
         const long long remaining = ((long long)(now.tv_sec - end.tv_sec)) * 1000000 + (now.tv_nsec - end.tv_nsec) / 1000;
         if (remaining >= 0)
             break;
-        const long long diff = INTERVAL_MS * 1000 - ((long long)(now.tv_sec - last.tv_sec)) * 1000000 - (now.tv_nsec - last.tv_nsec) / 1000;
+        long long diff = INTERVAL_MS * 1000000 - ((long long)(now.tv_sec - last.tv_sec)) * 1000000000 - (now.tv_nsec - last.tv_nsec);
         if (diff > 0)
         {
-            usleep(diff);
+            struct timespec slp;
+            slp.tv_sec = diff / 1000000000;
+            slp.tv_nsec = diff % 1000000000;
+            if (nanosleep(&slp, NULL) != 0)
+            {
+                return errno == EINTR ? -1 : 0;
+            }
             if (clock_gettime(CLOCK_MONOTONIC_COARSE, &last) != 0)
             {
                 fprintf(stderr, "Failed to get current time (last) for frequency, errno=%d\n", errno);
@@ -580,7 +599,7 @@ static int handle_used_time(const int time_s)
     struct timespec last = end;
     end.tv_sec += time_s;
     end.tv_nsec -= INTERVAL_MS * 1000000;
-    for (unsigned step = 0;;step++)
+    for (unsigned step = 0;g_stop == 0;step++)
     {
         if (get_used_time() < 0)
         {
@@ -595,10 +614,16 @@ static int handle_used_time(const int time_s)
         const long long remaining = ((long long)(now.tv_sec - end.tv_sec)) * 1000000 + (now.tv_nsec - end.tv_nsec) / 1000;
         if (remaining >= 0)
             break;
-        const long long diff = INTERVAL_MS * 1000 - ((long long)(now.tv_sec - last.tv_sec)) * 1000000 - (now.tv_nsec - last.tv_nsec) / 1000;
+        long long diff = INTERVAL_MS * 1000000 - ((long long)(now.tv_sec - last.tv_sec)) * 1000000000 - (now.tv_nsec - last.tv_nsec);
         if (diff > 0)
         {
-            usleep(diff);
+            struct timespec slp;
+            slp.tv_sec = diff / 1000000000;
+            slp.tv_nsec = diff % 1000000000;
+            if (nanosleep(&slp, NULL) != 0)
+            {
+                return errno == EINTR ? -1 : 0;
+            }
             if (clock_gettime(CLOCK_MONOTONIC_COARSE, &last) != 0)
             {
                 fprintf(stderr, "Failed to get current time (last) for used time, errno=%d\n", errno);
@@ -637,8 +662,15 @@ static int handle_subscription(const int time_s)
         fclose(schedstat);
         return -1;
     }
-    const unsigned long long interval = 1000000ULL * time_s;
-    usleep(interval);
+    struct timespec slp;
+    slp.tv_sec = time_s;
+    slp.tv_nsec = 0;
+    if (nanosleep(&slp, NULL) != 0)
+    {
+        fclose(schedstat);
+        return errno == EINTR ? -1 : 0;
+    }
+
     g_cpu_max_index = 0; // If CPU count is down we should not take into account old CPUs
     rewind(schedstat);
     if (update_schedstat(schedstat) != 0)
@@ -649,6 +681,7 @@ static int handle_subscription(const int time_s)
     fclose(schedstat);
 
     const unsigned cpus = g_cpu_max_index + 1;
+    const unsigned long long interval = 1000000ULL * time_s;
     unsigned total_capacity = 0;
     unsigned long long total_cpu_subscription = 0;
     for (unsigned short cpu = 0;cpu < cpus;++cpu)
@@ -665,6 +698,7 @@ static int handle_subscription(const int time_s)
             fprintf(stderr, "Failed to get cpu%hu capacity, errno=%d\n", cpu, errno);
             return -1;
         }
+
         total_capacity += cpu_capacity;
         const unsigned long long cpu_subscription = g_cpu_subscription[cpu];
         total_cpu_subscription += cpu_subscription;
@@ -677,6 +711,11 @@ static int handle_subscription(const int time_s)
     const unsigned total_subscription = (total_cpu_subscription * 100 * 100 + total_scale - 1) / total_scale;
     printf("- system.cpu.subscription %u\n", total_subscription);
     return 0;
+}
+
+static void empty_handler(int signum)
+{
+    (void)signum;
 }
 
 static void* subscription_routine(void* time_s)
@@ -694,6 +733,32 @@ static void* used_time_routine(void* time_s)
     return (void*)(long)handle_used_time(*((const int*)time_s));;
 }
 
+static void term_handler(int signum)
+{
+    (void)signum;
+    if (g_stop)
+    {
+        return;
+    }
+
+    g_stop = 1;
+    if (g_subscription_thread)
+    {
+        pthread_kill(g_subscription_thread, SIGALRM);
+    }
+
+    if (g_frequency_thread)
+    {
+        pthread_kill(g_frequency_thread, SIGALRM);
+    }
+
+
+    if (g_used_time_thread)
+    {
+        pthread_kill(g_used_time_thread, SIGALRM);
+    }
+}
+
 int main(int argc, char* argv[])
 {
     int time_s = TIME_S;
@@ -706,29 +771,47 @@ int main(int argc, char* argv[])
             return -1;
         }        
     }
+
+    struct sigaction term_sa = {0};
+    term_sa.sa_handler = &term_handler;
+    sigaction(SIGTERM, &term_sa, NULL);
+
+    struct sigaction alrm_sa = {0};
+    alrm_sa.sa_handler = &empty_handler;
+    sigaction(SIGALRM, &alrm_sa, NULL);
+
 // Start threads and join them
-    pthread_t subscription_thread;
-    if (pthread_create(&subscription_thread, NULL, subscription_routine, &time_s) != 0)
+    if (pthread_create(&g_subscription_thread, NULL, subscription_routine, &time_s) != 0)
     {
         fprintf(stderr, "Failed to create subscription monitoring thread, errno=%d", errno);
         return -1;
     }
-    pthread_t frequency_thread;
-    if (pthread_create(&frequency_thread, NULL, frequency_routine, &time_s))
+    if (pthread_create(&g_frequency_thread, NULL, frequency_routine, &time_s))
     {
         fprintf(stderr, "Failed to create frequency monitoring thread, errno=%d", errno);
         return -1;
     }
-    pthread_t used_time_thread;
-    if (pthread_create(&used_time_thread, NULL, used_time_routine, &time_s))
+    if (pthread_create(&g_used_time_thread, NULL, used_time_routine, &time_s))
     {
         fprintf(stderr, "Failed to create used time monitoring thread, errno=%d", errno);
         return -1;
     }
     void* subscription_result;
-    if (pthread_join(subscription_thread, &subscription_result) != 0)
+    if (pthread_join(g_subscription_thread, &subscription_result) != 0)
     {
         fprintf(stderr, "Failed to join subscription monitoring thread, errno=%d", errno);
+        return -1;
+    }
+    void* frequency_result;
+    if (pthread_join(g_frequency_thread, &frequency_result) != 0)
+    {
+        fprintf(stderr, "Failed to join frequency monitoring thread, errno=%d", errno);
+        return -1;
+    }
+    void* used_time_result;
+    if (pthread_join(g_used_time_thread, &used_time_result) != 0)
+    {
+        fprintf(stderr, "Failed to join used time monitoring thread, errno=%d", errno);
         return -1;
     }
     const int subscription_result_code = (int)(long)subscription_result;
@@ -736,23 +819,11 @@ int main(int argc, char* argv[])
     {
         return subscription_result_code;
     }    
-    void* frequency_result;
-    if (pthread_join(frequency_thread, &frequency_result) != 0)
-    {
-        fprintf(stderr, "Failed to join frequency monitoring thread, errno=%d", errno);
-        return -1;
-    }
     const int frequency_result_code = (int)(long)frequency_result;
     if (frequency_result_code != 0)
     {
         return frequency_result_code;
     }    
-    void* used_time_result;
-    if (pthread_join(used_time_thread, &used_time_result) != 0)
-    {
-        fprintf(stderr, "Failed to join used time monitoring thread, errno=%d", errno);
-        return -1;
-    }
     const int used_time_result_code = (int)(long)used_time_result;
     if (used_time_result_code != 0)
     {
