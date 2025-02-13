@@ -1,6 +1,6 @@
 /*
     Build with "gcc -O3 cpumon.c -s -Wall -Wpedantic -Wextra -o cpumon -lpthread"
-    Usage: cpumon [<time in seconds=[5;60]>]
+    Usage: cpumon [<time in seconds=[1;60]>]
 */
 
 #define _POSIX_C_SOURCE 200809
@@ -660,7 +660,7 @@ int main(int argc, char* argv[])
     if (argc == 2 && argv[1] != NULL)
     {
         time_s = atoi(argv[1]);
-        if (time_s < 5 || time_s > TIME_S)
+        if (time_s < 1 || time_s > TIME_S)
         {
             fprintf(stderr, "The specified time %d is out of range\n", time_s);
             return -1;
