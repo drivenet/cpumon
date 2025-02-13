@@ -435,7 +435,7 @@ static int handle_frequency(const int time_s)
     unsigned frequency_ratio = 0;
     struct timespec last = end;
     end.tv_sec += time_s;
-    end.tv_nsec -= INTERVAL_MS * 1000000;
+    end.tv_nsec -= INTERVAL_MS * 1000000LL;
     for (unsigned step = 0;g_stop == 0;step++)
     {
         if (frequency_limit != 0)
@@ -454,15 +454,15 @@ static int handle_frequency(const int time_s)
             fprintf(stderr, "Failed to get current time (now) for frequency, errno=%d\n", errno);
             return -1;
         }
-        const long long remaining = ((long long)(now.tv_sec - end.tv_sec)) * 1000000 + (now.tv_nsec - end.tv_nsec) / 1000;
+        const long long remaining = ((long long)(now.tv_sec - end.tv_sec)) * 1000000LL + (now.tv_nsec - end.tv_nsec) / 1000;
         if (remaining >= 0)
             break;
-        long long diff = INTERVAL_MS * 1000000 - ((long long)(now.tv_sec - last.tv_sec)) * 1000000000 - (now.tv_nsec - last.tv_nsec);
+        long long diff = INTERVAL_MS * 1000000LL - ((long long)(now.tv_sec - last.tv_sec)) * 1000000000LL - (now.tv_nsec - last.tv_nsec);
         if (diff > 0)
         {
             struct timespec slp;
-            slp.tv_sec = diff / 1000000000;
-            slp.tv_nsec = diff % 1000000000;
+            slp.tv_sec = diff / 1000000000LL;
+            slp.tv_nsec = diff % 1000000000LL;
             if (nanosleep(&slp, NULL) != 0)
             {
                 return errno == EINTR ? -1 : 0;
@@ -499,7 +499,7 @@ static int handle_used_time(const int time_s)
     const useconds_t INTERVAL_MS = MIN_TIME / 2;
     struct timespec last = end;
     end.tv_sec += time_s;
-    end.tv_nsec -= INTERVAL_MS * 1000000;
+    end.tv_nsec -= INTERVAL_MS * 1000000LL;
     for (unsigned step = 0;g_stop == 0;step++)
     {
         if (get_used_time() < 0)
@@ -512,15 +512,15 @@ static int handle_used_time(const int time_s)
             fprintf(stderr, "Failed to get time (now) for used time, errno=%d\n", errno);
             return -1;
         }
-        const long long remaining = ((long long)(now.tv_sec - end.tv_sec)) * 1000000 + (now.tv_nsec - end.tv_nsec) / 1000;
+        const long long remaining = ((long long)(now.tv_sec - end.tv_sec)) * 1000000LL + (now.tv_nsec - end.tv_nsec) / 1000;
         if (remaining >= 0)
             break;
-        long long diff = INTERVAL_MS * 1000000 - ((long long)(now.tv_sec - last.tv_sec)) * 1000000000 - (now.tv_nsec - last.tv_nsec);
+        long long diff = INTERVAL_MS * 1000000LL - ((long long)(now.tv_sec - last.tv_sec)) * 1000000000LL - (now.tv_nsec - last.tv_nsec);
         if (diff > 0)
         {
             struct timespec slp;
-            slp.tv_sec = diff / 1000000000;
-            slp.tv_nsec = diff % 1000000000;
+            slp.tv_sec = diff / 1000000000LL;
+            slp.tv_nsec = diff % 1000000000LL;
             if (nanosleep(&slp, NULL) != 0)
             {
                 return errno == EINTR ? -1 : 0;
