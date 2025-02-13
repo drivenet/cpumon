@@ -682,10 +682,14 @@ static int handle_subscription(const int time_s)
 
     const unsigned cpus = g_cpu_max_index + 1;
     const unsigned long long interval = 1000000ULL * time_s;
-    unsigned total_capacity = 0;
+    const unsigned long long scale = interval * 1000;
     unsigned long long total_cpu_subscription = 0;
     for (unsigned short cpu = 0;cpu < cpus;++cpu)
     {
+        const unsigned long long cpu_subscription = g_cpu_subscription[cpu];
+        const unsigned subscription = (cpu_subscription * 100 + scale - 1) / scale;
+        printf("- system.cpu.subscription[%hu] %u\n", cpu, subscription);
+
         char path[PATH_MAX + 1];
         if (snprintf(path, PATH_MAX + 1, "/sys/devices/system/cpu/cpu%hu/topology/thread_siblings", cpu) <= 0)
         {
@@ -700,16 +704,11 @@ static int handle_subscription(const int time_s)
             return -1;
         }
 
-        total_capacity += cpu_capacity;
-        const unsigned long long cpu_subscription = g_cpu_subscription[cpu];
-        total_cpu_subscription += cpu_subscription;
-        const unsigned long long scale = interval * 1000;
-        const unsigned subscription = (cpu_subscription * 100 + scale - 1) / scale;
-        printf("- system.cpu.subscription[%hu] %u\n", cpu, subscription);
+        total_cpu_subscription += (cpu_subscription * 100 + cpu_capacity - 1) / cpu_capacity;
     }
 
-    const unsigned long long total_scale = interval * total_capacity * 1000;
-    const unsigned total_subscription = (total_cpu_subscription * 100 * 100 + total_scale - 1) / total_scale;
+    const unsigned long long total_scale = cpus * scale;
+    const unsigned total_subscription = (total_cpu_subscription * 100 + total_scale - 1) / total_scale;
     printf("- system.cpu.subscription %u\n", total_subscription);
     return 0;
 }
