@@ -453,7 +453,7 @@ static int handle_subscription_loadavg(const int time_s)
         return -1;
     struct timespec last = end;
     end.tv_sec += time_s;
-    end.tv_nsec -= INTERVAL_MS * 1000000;
+    end.tv_nsec -= INTERVAL_MS * 1000000LL;
     for (unsigned step = 0;g_stop == 0;step++)
     {
         FILE *loadavg = fopen("/proc/loadavg", "r");
@@ -483,15 +483,15 @@ static int handle_subscription_loadavg(const int time_s)
             fprintf(stderr, "Failed to get current time (now) for subscription, errno=%d\n", errno);
             return -1;
         }
-        long long remaining = ((long long)(now.tv_sec - end.tv_sec)) * 1000000 + (now.tv_nsec - end.tv_nsec) / 1000;
+        long long remaining = ((long long)(now.tv_sec - end.tv_sec)) * 1000000LL + (now.tv_nsec - end.tv_nsec) / 1000;
         if (remaining >= 0)
             break;
-        long long diff = INTERVAL_MS * 1000000 - ((long long)(now.tv_sec - last.tv_sec)) * 1000000000 - (now.tv_nsec - last.tv_nsec);
+        long long diff = INTERVAL_MS * 1000000LL - ((long long)(now.tv_sec - last.tv_sec)) * 1000000000LL - (now.tv_nsec - last.tv_nsec);
         if (diff > 0)
         {
             struct timespec slp;
-            slp.tv_sec = diff / 1000000000;
-            slp.tv_nsec = diff % 1000000000;
+            slp.tv_sec = diff / 1000000000LL;
+            slp.tv_nsec = diff % 1000000000LL;
             if (nanosleep(&slp, NULL) != 0)
             {
                 return errno == EINTR ? -1 : 0;
