@@ -193,7 +193,7 @@ static pthread_t g_frequency_thread;
 static pthread_t g_used_time_thread;
 static volatile sig_atomic_t g_stop;
 
-static const unsigned MIN_TIME = 1800;
+static const unsigned MIN_TIME = 2000;
 static const unsigned MIN_USED_TIME = 32;
 
 static int read_name(const pid_t pid, char* const stat_path)
