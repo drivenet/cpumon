@@ -524,7 +524,7 @@ static int handle_frequency(const int time_s)
         fprintf(stderr, "Failed to get start time for frequency, errno=%d\n", errno);
         return -1;
     }
-    const useconds_t INTERVAL_MS = 1337;
+    const useconds_t INTERVAL_MS = 500;
     const unsigned frequency_limit = get_frequency_limit();
     if (frequency_limit != 0)
         printf("- system.cpu.frequency_limit %u\n", frequency_limit);
