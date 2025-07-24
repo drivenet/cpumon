@@ -798,36 +798,36 @@ int main(int argc, char* argv[])
 // Start threads and join them
     if (pthread_create(&g_subscription_thread, NULL, subscription_routine, &time_s) != 0)
     {
-        fprintf(stderr, "Failed to create subscription monitoring thread, errno=%d", errno);
+        fprintf(stderr, "Failed to create subscription monitoring thread, errno=%d\n", errno);
         return -1;
     }
     if (pthread_create(&g_frequency_thread, NULL, frequency_routine, &time_s))
     {
-        fprintf(stderr, "Failed to create frequency monitoring thread, errno=%d", errno);
+        fprintf(stderr, "Failed to create frequency monitoring thread, errno=%d\n", errno);
         return -1;
     }
     if (pthread_create(&g_used_time_thread, NULL, used_time_routine, &time_s))
     {
-        fprintf(stderr, "Failed to create used time monitoring thread, errno=%d", errno);
+        fprintf(stderr, "Failed to create used time monitoring thread, errno=%d\n", errno);
         return -1;
     }
 
     void* subscription_result;
     if (pthread_join(g_subscription_thread, &subscription_result) != 0)
     {
-        fprintf(stderr, "Failed to join subscription monitoring thread, errno=%d", errno);
+        fprintf(stderr, "Failed to join subscription monitoring thread, errno=%d\n", errno);
         return -1;
     }
     void* frequency_result;
     if (pthread_join(g_frequency_thread, &frequency_result) != 0)
     {
-        fprintf(stderr, "Failed to join frequency monitoring thread, errno=%d", errno);
+        fprintf(stderr, "Failed to join frequency monitoring thread, errno=%d\n", errno);
         return -1;
     }
     void* used_time_result;
     if (pthread_join(g_used_time_thread, &used_time_result) != 0)
     {
-        fprintf(stderr, "Failed to join used time monitoring thread, errno=%d", errno);
+        fprintf(stderr, "Failed to join used time monitoring thread, errno=%d\n", errno);
         return -1;
     }
 
