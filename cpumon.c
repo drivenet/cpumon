@@ -202,7 +202,7 @@ static int read_name(const pid_t pid, char* const stat_path)
         return 0;
     char buffer[PATH_MAX + 1];
     const char* const stat_dir = dirname(stat_path);
-    if (snprintf(buffer, sizeof(buffer), "%s/cmdline", stat_dir) >= sizeof(buffer))
+    if (snprintf(buffer, sizeof(buffer), "%s/cmdline", stat_dir) >= PATH_MAX + 1)
     {
         fprintf(stderr, "Path too long for cmdline: %s\n", stat_dir);
         return 0;
@@ -237,7 +237,7 @@ static int read_name(const pid_t pid, char* const stat_path)
     }
     if (bytes == 0)
     {
-        if (snprintf(buffer, sizeof(buffer), "%s/comm", stat_dir) >= sizeof(buffer))
+        if (snprintf(buffer, sizeof(buffer), "%s/comm", stat_dir) >= PATH_MAX + 1)
         {
             fprintf(stderr, "Path too long for comm: %s\n", stat_dir);
             return 0;
@@ -699,7 +699,7 @@ static int handle_subscription(const int time_s)
 
         char path[PATH_MAX + 1];
         int ret = snprintf(path, sizeof(path), "/sys/devices/system/cpu/cpu%hu/topology/thread_siblings", cpu);
-        if (ret <= 0 || ret >= sizeof(path))
+        if (ret <= 0 || ret >= PATH_MAX + 1)
         {
             fprintf(stderr, "Failed to generate cpu%hu topology path\n", cpu);
             return -1;
