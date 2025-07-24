@@ -776,11 +776,19 @@ int main(int argc, char* argv[])
 
     struct sigaction term_sa = {0};
     term_sa.sa_handler = &term_handler;
-    sigaction(SIGTERM, &term_sa, NULL);
+    if (sigaction(SIGTERM, &term_sa, NULL) != 0)
+    {
+        fprintf(stderr, "Failed to set SIGTERM handler, errno=%d\n", errno);
+        return -1;
+    }
 
     struct sigaction alrm_sa = {0};
     alrm_sa.sa_handler = &empty_handler;
-    sigaction(SIGALRM, &alrm_sa, NULL);
+    if (sigaction(SIGALRM, &alrm_sa, NULL) != 0)
+    {
+        fprintf(stderr, "Failed to set SIGALRM handler, errno=%d\n", errno);
+        return -1;
+    }
 
 // Start threads and join them
     if (pthread_create(&g_subscription_thread, NULL, subscription_routine, &time_s) != 0)
