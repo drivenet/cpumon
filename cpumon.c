@@ -584,7 +584,7 @@ static int handle_frequency(const int time_s)
             last = now;
         }
     }
-    if (frequency_ratio != 0)
+    if (frequency_ratio != 0 && frequency_limit != 0)
     {
         const unsigned frequency = (frequency_sum + frequency_ratio - 1) / frequency_ratio;
         printf("- system.cpu.frequency %u\n", frequency);
