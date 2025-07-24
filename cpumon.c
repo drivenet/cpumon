@@ -738,7 +738,7 @@ static void* frequency_routine(void* time_s)
 
 static void* used_time_routine(void* time_s)
 {
-    return (void*)(long)handle_used_time(*((const int*)time_s));;
+    return (void*)(long)handle_used_time(*((const int*)time_s));
 }
 
 static void term_handler(int signum)
