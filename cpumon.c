@@ -303,6 +303,11 @@ static int get_local_time(char* const stat_path)
         }
     }
     fclose(time);
+    if (pid < 0)
+    {
+        fprintf(stderr, "Invalid negative PID %d detected\n", pid);
+        return -1;
+    }
     if (pid >= PID_MAX)
     {
         fprintf(stderr, "PID %d is too large\n", pid);
