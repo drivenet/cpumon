@@ -1,5 +1,6 @@
 /*
-    Build with "gcc -O3 cpumon.c -s -Wall -Wpedantic -Wextra -o cpumon -lpthread"
+    Build with GLIBC: "gcc cpumon.c -s -Wall -Wpedantic -Wextra -o cpumon -lpthread -O3 -fomit-frame-pointer -s -fno-unwind-tables -fno-asynchronous-unwind-tables"
+    Build with MUSL: "musl-gcc cpumon.c -s -Wall -Wpedantic -Wextra -o cpumon -lpthread -O3 -fomit-frame-pointer -s -fno-unwind-tables -fno-asynchronous-unwind-tables -static"
     Usage: cpumon [<time in seconds=[1;60]>]
 */
 
