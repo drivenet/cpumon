@@ -177,6 +177,8 @@ static unsigned get_frequency_limit()
 #define PID_MAX 4 * 1024 * 1024
 // We probably won't hit this
 #define NR_CPUS 2048
+// We probably won't hit this
+#define NR_CPU_NODES 1024
 
 struct procinfo {
     unsigned time;
@@ -188,7 +190,9 @@ static struct procinfo g_procs[PID_MAX];
 static pid_t g_used_pids[PID_MAX];
 static volatile unsigned g_used_pids_count;
 static unsigned long long g_cpu_subscription[NR_CPUS];
+static unsigned short g_cpu_nodes[NR_CPU_NODES];
 static volatile unsigned short g_cpu_max_index;
+static volatile unsigned short g_node_max_index;
 static pthread_t g_subscription_thread;
 static pthread_t g_frequency_thread;
 static pthread_t g_used_time_thread;
@@ -337,6 +341,51 @@ static int get_local_time(char* const stat_path)
         g_procs[pid].diff = delta;
         return delta;
     }
+    return 0;
+}
+
+static int get_cpu_nodes()
+{
+    glob_t result;
+    if (glob("/sys/devices/system/cpu/cpu[0-9]*/node[0-9]*", GLOB_NOSORT, NULL, &result) != 0)
+    {
+        fprintf(stderr, "Failed to get CPU nodes, errno=%d\n", errno);
+        return -1;
+    }
+
+    // This is done for safety so that unmapped nodes will fail when accessing them since 0xFFFF is larger than NR_CPU_NODES
+    memset(g_cpu_nodes, 0xFF, NR_CPU_NODES * sizeof(unsigned short));
+
+    for (size_t i = 0;i != result.gl_pathc;++i)
+    {
+        const char* const path = result.gl_pathv[i];
+        unsigned short cpu, node;
+        if (sscanf(path, "/sys/devices/system/cpu/cpu%hu/node%hu", &cpu, &node) != 2)
+        {
+            fprintf(stderr, "Failed to parse CPU node from \"%s\", errno=%d\n", path, errno);
+            continue;
+        }
+
+        if (cpu >= NR_CPUS)
+        {
+            fprintf(stderr, "Invalid CPU index %hu from \"%s\"\n", cpu, path);
+            continue;
+        }
+
+        if (node >= NR_CPU_NODES)
+        {
+            fprintf(stderr, "Invalid CPU node index %hu from \"%s\"\n", node, path);
+            continue;
+        }
+
+        g_cpu_nodes[cpu] = node;
+        if (g_node_max_index < node)
+        {
+            g_node_max_index = node;
+        }
+    }
+
+    globfree(&result);
     return 0;
 }
 
@@ -665,6 +714,12 @@ static int handle_subscription(const int time_s)
         return -1;
     }
 
+    if (get_cpu_nodes() != 0)
+    {
+        fclose(schedstat);
+        return -1;
+    }
+
     if (update_schedstat(schedstat) != 0)
     {
         fclose(schedstat);
@@ -689,6 +744,13 @@ static int handle_subscription(const int time_s)
     fclose(schedstat);
 
     const unsigned cpus = g_cpu_max_index + 1;
+    unsigned long long node_subscription[cpus];
+    memset(node_subscription, 0, cpus * sizeof(unsigned long long));
+
+    const unsigned nodes = g_node_max_index + 1;
+    unsigned short node_cpus[nodes];
+    memset(node_cpus, 0, nodes * sizeof(unsigned short));
+
     const unsigned long long interval = 1000000ULL * time_s;
     const unsigned long long scale = interval * 1000;
     unsigned long long total_cpu_subscription = 0;
@@ -715,11 +777,29 @@ static int handle_subscription(const int time_s)
 
         const unsigned long long relative_cpu_subscription = (cpu_subscription * 100 + cpu_capacity - 1) / cpu_capacity;
         total_cpu_subscription += relative_cpu_subscription;
+
+        unsigned short node = g_cpu_nodes[cpu];
+        if (node >= nodes)
+        {
+            fprintf(stderr, "Invalid CPU %hu node index %hu\n", cpu, node);
+            return -1;
+        }
+
+        node_subscription[node] += relative_cpu_subscription;
+        ++node_cpus[node];
     }
 
     const unsigned long long total_scale = cpus * scale;
     const unsigned total_subscription = (total_cpu_subscription * 100 + total_scale - 1) / total_scale;
     printf("- system.cpu.subscription %u\n", total_subscription);
+
+    for (unsigned short node = 0;node < nodes;++node)
+    {
+        const unsigned long long node_scale = scale * node_cpus[node];
+        const unsigned subscription = (node_subscription[node] * 100 + node_scale - 1) / node_scale;
+        printf("- system.cpu_node.subscription[%hu] %u\n", node, subscription);
+    }
+
     return 0;
 }
 
