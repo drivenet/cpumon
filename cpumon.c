@@ -775,6 +775,7 @@ static int handle_subscription(const int time_s)
             return -1;
         }
 
+        printf("- system.cpu.capacity[%hu] %u\n", cpu, cpu_capacity);
         const unsigned long long relative_cpu_subscription = (cpu_subscription * 100 + cpu_capacity - 1) / cpu_capacity;
         total_cpu_subscription += relative_cpu_subscription;
 
