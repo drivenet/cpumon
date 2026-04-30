@@ -420,7 +420,7 @@ static void dump_top(const unsigned clock_scale)
     if (g_used_pids_count == 0)
         return;
     qsort(g_used_pids, g_used_pids_count, sizeof(pid_t), &diff_comparer);
-    const unsigned TOP_N = 5;
+    const unsigned TOP_N = 16;
     unsigned pids_count = g_used_pids_count;
     if (pids_count > TOP_N)
         pids_count = TOP_N;
