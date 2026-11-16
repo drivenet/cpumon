@@ -468,7 +468,7 @@ static int update_schedstat(FILE* const schedstat)
         char buffer[SCHEDSTAT_LINE_LEN];
         if (fgets(buffer, SCHEDSTAT_LINE_LEN, schedstat) == NULL)
         {
-            if (errno == 0)
+            if (!ferror(schedstat))
             {
                 break;
             }
