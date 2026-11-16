@@ -189,7 +189,8 @@ struct procinfo {
 static struct procinfo g_procs[PID_MAX];
 static pid_t g_used_pids[PID_MAX];
 static volatile unsigned g_used_pids_count;
-static unsigned long long g_cpu_subscription[NR_CPUS];
+static unsigned long long g_cpu_run_time[NR_CPUS];
+static unsigned long long g_cpu_wait_time[NR_CPUS];
 static unsigned short g_cpu_nodes[NR_CPUS];
 static volatile unsigned short g_cpu_max_index;
 static volatile unsigned short g_node_max_index;
@@ -486,7 +487,8 @@ static int update_schedstat(FILE* const schedstat)
             return -1;
         }
 
-        g_cpu_subscription[cpu] = run_time + wait_time - g_cpu_subscription[cpu];
+        g_cpu_run_time[cpu] = run_time - g_cpu_run_time[cpu];
+        g_cpu_wait_time[cpu] = wait_time - g_cpu_wait_time[cpu];
         if (g_cpu_max_index < cpu)
         {
             g_cpu_max_index = cpu;
@@ -756,7 +758,9 @@ static int handle_subscription(const int time_s)
     unsigned long long total_cpu_subscription = 0;
     for (unsigned short cpu = 0;cpu < cpus;++cpu)
     {
-        const unsigned long long cpu_subscription = g_cpu_subscription[cpu];
+        unsigned long long cpu_run_time = g_cpu_run_time[cpu];
+        unsigned long long cpu_wait_time = g_cpu_wait_time[cpu];
+        const unsigned long long cpu_subscription = cpu_run_time + cpu_wait_time;
         const unsigned subscription = (cpu_subscription * 100 + scale - 1) / scale;
         printf("- system.cpu.subscription[%hu] %u\n", cpu, subscription);
 
