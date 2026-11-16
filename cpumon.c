@@ -190,7 +190,7 @@ static struct procinfo g_procs[PID_MAX];
 static pid_t g_used_pids[PID_MAX];
 static volatile unsigned g_used_pids_count;
 static unsigned long long g_cpu_subscription[NR_CPUS];
-static unsigned short g_cpu_nodes[NR_CPU_NODES];
+static unsigned short g_cpu_nodes[NR_CPUS];
 static volatile unsigned short g_cpu_max_index;
 static volatile unsigned short g_node_max_index;
 static pthread_t g_subscription_thread;
@@ -354,7 +354,7 @@ static int get_cpu_nodes()
     }
 
     // This is done for safety so that unmapped nodes will fail when accessing them since 0xFFFF is larger than NR_CPU_NODES
-    memset(g_cpu_nodes, 0xFF, NR_CPU_NODES * sizeof(unsigned short));
+    memset(g_cpu_nodes, 0xFF, NR_CPUS * sizeof(unsigned short));
 
     for (size_t i = 0;i != result.gl_pathc;++i)
     {
