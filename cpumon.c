@@ -457,6 +457,9 @@ static void dump_top(const unsigned clock_scale)
 
 static const int TIME_S = 60;
 
+// Run/wait time deltas larger than this many sampling intervals are discarded as invalid
+static const unsigned MAX_DELTA_INTERVALS = 1000;
+
 static int update_schedstat(FILE* const schedstat)
 {
     for (;;)
@@ -755,11 +758,28 @@ static int handle_subscription(const int time_s)
 
     const unsigned long long interval = 1000000ULL * time_s;
     const unsigned long long scale = interval * 1000;
+
+    // The kernel accounts run/wait time in lumps at context switches and its counters may step by an arbitrary amount
+    // (e.g. a stale queue timestamp adds days of wait at once) or go slightly backwards (which wraps the unsigned delta).
+    // Deltas above this bound are considered invalid and are discarded.
+    const unsigned long long max_delta = scale * MAX_DELTA_INTERVALS;
     unsigned long long total_cpu_subscription = 0;
     for (unsigned short cpu = 0;cpu < cpus;++cpu)
     {
         unsigned long long cpu_run_time = g_cpu_run_time[cpu];
+        if (cpu_run_time > max_delta)
+        {
+            fprintf(stderr, "Unexpected cpu%hu run time delta %llu\n", cpu, cpu_run_time);
+            return -1;
+        }
+
         unsigned long long cpu_wait_time = g_cpu_wait_time[cpu];
+        if (cpu_wait_time > max_delta)
+        {
+            fprintf(stderr, "Discarding implausible cpu%hu wait time delta %llu\n", cpu, cpu_wait_time);
+            cpu_wait_time = 0;
+        }
+
         const unsigned long long cpu_subscription = cpu_run_time + cpu_wait_time;
         const unsigned subscription = (cpu_subscription * 100 + scale - 1) / scale;
         printf("- system.cpu.subscription[%hu] %u\n", cpu, subscription);
